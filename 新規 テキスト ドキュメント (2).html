@@ -1,0 +1,528 @@
+```html
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>クラス vs 全国 成績比較</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+body{
+    margin:0;
+    padding:30px;
+    background:#eef2f7;
+    font-family:Arial, sans-serif;
+    color:#2c3e50;
+}
+
+h1{
+    text-align:center;
+    margin-bottom:30px;
+}
+
+.container{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:20px;
+}
+
+.card{
+    background:white;
+    border-radius:15px;
+    padding:20px;
+    box-shadow:0 4px 10px rgba(0,0,0,0.08);
+}
+
+.full{
+    grid-column:1 / 3;
+}
+
+.stat-grid{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:15px;
+    margin-top:20px;
+}
+
+.stat-box{
+    background:#f7f9fc;
+    border-radius:12px;
+    padding:15px;
+    text-align:center;
+}
+
+.stat-title{
+    font-size:14px;
+    color:#777;
+    margin-bottom:8px;
+}
+
+.stat-value{
+    font-size:28px;
+    font-weight:bold;
+}
+
+.plus{
+    color:#27ae60;
+}
+
+.minus{
+    color:#e74c3c;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+}
+
+th,td{
+    padding:12px;
+    text-align:center;
+}
+
+th{
+    background:#3498db;
+    color:white;
+}
+
+tr:nth-child(even){
+    background:#f4f6f8;
+}
+
+.analysis li{
+    margin-bottom:12px;
+    line-height:1.8;
+}
+
+canvas{
+    max-height:450px;
+}
+
+@media(max-width:900px){
+
+    .container{
+        grid-template-columns:1fr;
+    }
+
+    .full{
+        grid-column:auto;
+    }
+
+    .stat-grid{
+        grid-template-columns:1fr;
+    }
+}
+
+</style>
+</head>
+
+<body>
+
+<h1>📊 クラス vs 全国 成績比較</h1>
+
+<div class="container">
+
+<!-- 基本統計 -->
+
+<div class="card full">
+
+<h2>📋 基本統計</h2>
+
+<div class="stat-grid">
+
+<div class="stat-box">
+<div class="stat-title">クラス平均</div>
+<div class="stat-value" id="classMean"></div>
+</div>
+
+<div class="stat-box">
+<div class="stat-title">全国平均</div>
+<div class="stat-value" id="nationalMean"></div>
+</div>
+
+<div class="stat-box">
+<div class="stat-title">平均との差</div>
+<div class="stat-value" id="meanDiff"></div>
+</div>
+
+</div>
+
+<br>
+
+<table>
+
+<thead>
+
+<tr>
+<th>項目</th>
+<th>クラス</th>
+<th>全国</th>
+</tr>
+
+</thead>
+
+<tbody id="statsTable">
+
+</tbody>
+
+</table>
+
+</div>
+
+<!-- グラフ -->
+
+<div class="card full">
+
+<h2>📈 点数分布比較</h2>
+
+<canvas id="comparisonChart"></canvas>
+
+</div>
+
+<!-- 分析 -->
+
+<div class="card full">
+
+<h2>💡 分析</h2>
+
+<ul class="analysis" id="analysis"></ul>
+
+</div>
+
+</div>
+
+<script>
+
+// ====================================
+// クラスデータ
+// ====================================
+
+const classScores = [
+
+74,63,82,53,72,94,44,79,63,72,
+84,53,72,61,69,88,35,78,62,71,
+98,52,75,62,72,84,42,79,64,71,
+88,54,72,61,74,83,29,78,62,72,
+93,52,72,62,73,84,44,79
+
+];
+
+// ====================================
+// 統計関数
+// ====================================
+
+function average(arr){
+
+    return arr.reduce((a,b)=>a+b,0)/arr.length;
+}
+
+function median(arr){
+
+    const sorted=[...arr].sort((a,b)=>a-b);
+
+    const mid=Math.floor(sorted.length/2);
+
+    if(sorted.length%2===0){
+
+        return (sorted[mid-1]+sorted[mid])/2;
+    }
+
+    return sorted[mid];
+}
+
+function mode(arr){
+
+    const count={};
+
+    arr.forEach(v=>{
+
+        count[v]=(count[v]||0)+1;
+    });
+
+    return Object.keys(count).reduce((a,b)=>
+        count[a]>count[b]?a:b
+    );
+}
+
+function stdDev(arr){
+
+    const avg=average(arr);
+
+    const variance=
+        arr.reduce((sum,val)=>
+            sum+Math.pow(val-avg,2),0
+        )/arr.length;
+
+    return Math.sqrt(variance);
+}
+
+// ====================================
+// クラス統計
+// ====================================
+
+const classStats={
+
+    mean: average(classScores).toFixed(2),
+
+    median: median(classScores),
+
+    mode: mode(classScores),
+
+    max: Math.max(...classScores),
+
+    min: Math.min(...classScores),
+
+    sd: stdDev(classScores).toFixed(2)
+};
+
+// ====================================
+// クラス分布
+// ====================================
+
+const classDistribution = [
+0,0,0,0,0,0,0,0,0,0,0
+];
+
+classScores.forEach(score=>{
+
+    if(score === 100){
+
+        classDistribution[10]++;
+
+    }else{
+
+        classDistribution[Math.floor(score/10)]++;
+    }
+
+});
+
+// ====================================
+// 全国データ取得
+// ====================================
+
+fetch(
+"https://yuu-miino-nue.github.io/2026_ICT_lecture/data/math-statistics-2025.json"
+)
+
+.then(response=>response.json())
+
+.then(data=>{
+
+    const national=data.statistics;
+
+    // ===============================
+    // 上部カード
+    // ===============================
+
+    document.getElementById("classMean")
+        .innerText=classStats.mean;
+
+    document.getElementById("nationalMean")
+        .innerText=national.mean;
+
+    const diff=
+        (classStats.mean-national.mean).toFixed(2);
+
+    const diffElement=
+        document.getElementById("meanDiff");
+
+    diffElement.innerText=
+        `${diff>=0?"+":""}${diff}`;
+
+    diffElement.className=
+        diff>=0 ? "stat-value plus"
+                : "stat-value minus";
+
+    // ===============================
+    // 比較表
+    // ===============================
+
+    const rows=[
+
+        ["平均点", classStats.mean, national.mean],
+
+        ["中央値", classStats.median, national.median],
+
+        ["最頻値", classStats.mode, national.mode],
+
+        ["最高点", classStats.max, national.maximum],
+
+        ["最低点", classStats.min, national.minimum],
+
+        ["標準偏差", classStats.sd, national.standardDeviation]
+    ];
+
+    const table=
+        document.getElementById("statsTable");
+
+    rows.forEach(r=>{
+
+        table.innerHTML += `
+        <tr>
+
+            <td>${r[0]}</td>
+
+            <td>${r[1]}</td>
+
+            <td>${r[2]}</td>
+
+        </tr>
+        `;
+    });
+
+    // ===============================
+    // 全国分布
+    // ===============================
+
+    const nationalDistribution=
+        data.distribution.map(d=>d.count);
+
+    // ===============================
+    // グラフ
+    // ===============================
+
+    new Chart(
+
+        document.getElementById("comparisonChart"),
+
+        {
+
+            type:"bar",
+
+            data:{
+
+                labels:[
+                    "0","10","20","30","40",
+                    "50","60","70","80","90","100"
+                ],
+
+                datasets:[
+
+                    {
+
+                        label:"クラス",
+
+                        data:classDistribution,
+
+                        backgroundColor:
+                        "rgba(52,152,219,0.8)",
+
+                        borderRadius:6
+                    },
+
+                    {
+
+                        label:"全国",
+
+                        data:nationalDistribution,
+
+                        backgroundColor:
+                        "rgba(231,76,60,0.5)",
+
+                        borderRadius:6
+                    }
+                ]
+            },
+
+            options:{
+
+                responsive:true,
+
+                plugins:{
+
+                    legend:{
+                        position:"top"
+                    }
+                },
+
+                scales:{
+
+                    y:{
+
+                        beginAtZero:true,
+
+                        title:{
+
+                            display:true,
+
+                            text:"人数"
+                        }
+                    },
+
+                    x:{
+
+                        title:{
+
+                            display:true,
+
+                            text:"点数帯"
+                        }
+                    }
+                }
+            }
+        }
+    );
+
+    // ===============================
+    // 分析
+    // ===============================
+
+    const analysis=
+        document.getElementById("analysis");
+
+    if(diff>0){
+
+        analysis.innerHTML += `
+        <li>
+        クラス平均は全国平均より
+        <b>${diff}点高い</b>です。
+        </li>
+        `;
+    }
+
+    else{
+
+        analysis.innerHTML += `
+        <li>
+        クラス平均は全国平均より
+        <b>${Math.abs(diff)}点低い</b>です。
+        </li>
+        `;
+    }
+
+    if(classStats.sd > national.standardDeviation){
+
+        analysis.innerHTML += `
+        <li>
+        クラスの点数のばらつきは
+        全国より大きいです。
+        </li>
+        `;
+    }
+
+    else{
+
+        analysis.innerHTML += `
+        <li>
+        クラスの点数のばらつきは
+        全国より小さいです。
+        </li>
+        `;
+    }
+
+    analysis.innerHTML += `
+    <li>
+    クラスは70点台に多く集中しています。
+    </li>
+    `;
+
+});
+
+</script>
+
+</body>
+</html>
+```
+S
